@@ -13,11 +13,6 @@ FROM ${BASE_IMAGE}
 WORKDIR /opt
 
 # install prerequisites
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends time \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
-    
 RUN pip3 install --no-cache-dir --verbose \
 	diffusers \
 	clip \
@@ -37,6 +32,8 @@ RUN git clone --depth=1 https://github.com/CompVis/stable-diffusion
 RUN git clone --depth=1 https://github.com/basujindal/stable-diffusion stable-diffusion-optimized && \
     cp -r stable-diffusion-optimized/optimizedSD stable-diffusion/ && \
     rm -rf stable-diffusion-optimized
+
+RUN pip3 install --no-cache-dir --verbose scipy
 
 # File "/opt/stable-diffusion/ldm/models/diffusion/ddpm.py", line 19, in <module>
 #   from pytorch_lightning.utilities.distributed import rank_zero_only

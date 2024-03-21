@@ -8,7 +8,9 @@ import fnmatch
 import importlib
 
 from packaging.specifiers import SpecifierSet
+
 from .l4t_version import L4T_VERSION
+from .utils import log_debug
 
 _PACKAGES = {}
 
@@ -68,11 +70,11 @@ def scan_packages(package_dirs=_PACKAGE_DIRS, rescan=False):
             scan_packages(path)
             
         _PACKAGE_SCAN = True  # flag that all dirs have been scanned
-        
+
         for key in _PACKAGES.copy():  # make sure all dependencies are met
             try:
                 resolve_dependencies(key)
-            except Exception as error:
+            except KeyError as error:
                 print(f"-- Package {key} has missing dependencies, disabling...  ({error})")
                 del _PACKAGES[key]
                 
@@ -146,7 +148,7 @@ def find_package(package, required=True, scan=True):
     """
     Find a package by name or alias, and return it's configuration dict.
     This filters the names with pattern matching using shell-style wildcards.
-    If required is true, an exception will be thrown if the package can't be found.
+    If required is true, a KeyError exception will be raised if any of the packages can't be found.
     """
     if validate_dict(package):
         return package
@@ -161,7 +163,7 @@ def find_package(package, required=True, scan=True):
             return pkg
         
     if required:
-        raise ValueError(f"couldn't find package:  {package}")
+        raise KeyError(f"couldn't find package:  {package}")
     else:
         return None
         
@@ -170,7 +172,7 @@ def find_packages(packages, required=True, scan=True, skip=[]):
     """
     Find a set of packages by name or alias, and return them in a dict.
     This filters the names with pattern matching using shell-style wildcards.
-    If required is true, an exception will be thrown if any of the packages can't be found.
+    If required is true, a KeyError exception will be raised if any of the packages can't be found.
     """
     if scan:
         scan_packages()
@@ -199,7 +201,7 @@ def find_packages(packages, required=True, scan=True, skip=[]):
                 found_package = True
            
         if required and not found_package:
-            raise ValueError(f"couldn't find package:  {search_pattern}")
+            raise KeyError(f"couldn't find package:  {search_pattern}")
             
         """
         matches = fnmatch.filter(list(_PACKAGES.keys()), search_pattern)
@@ -259,38 +261,55 @@ def group_packages(packages, key, default=''):
         
     return grouped
     
-    
+        
 def resolve_dependencies(packages, check=True):
     """
     Recursively expand the list of dependencies to include all sub-dependencies.
     Returns a new list of containers to build which contains all the dependencies.
+    
+    If check is true, then each dependency will be confirmed to exist, otherwise
+    a KeyError exception will be raised with the name of the missing dependency.
     """
     if isinstance(packages, str):
         packages = [packages]
     
-    # iteratively unroll/expand dependencies until the full list is resolved
-    while True:
+    def add_depends(packages):
         packages_org = packages.copy()
         
         for package in packages_org:
             for dependency in find_package(package).get('depends', []):
-                package_index = packages.index(package)
-                dependency_index = packages.index(dependency) if dependency in packages else -1
-                
+                package_index = packages.index(package)  
+                dependency_index = -1
+
+                for i, existing in enumerate(packages):
+                    if existing == dependency:   # same package names/tags
+                        dependency_index = i
+                    elif existing.split(':')[0] == dependency: # a specific tag of this package was already added   #dependency.split(':')[0]
+                        dependency_index = i
+                    elif existing == dependency.split(':')[0]:  # replace with this specific tag
+                        packages[i] = dependency
+                        return packages, True
+
                 if dependency_index < 0:  # dependency not in list, add it before the package
                     packages.insert(package_index, dependency)
                 elif dependency_index > package_index:  # dependency after current package, move it to before
-                    packages.remove(dependency)
+                    packages.pop(dependency_index)
                     packages.insert(package_index, dependency)
-      
-        if len(packages) == len(packages_org):
+                    return packages, True
+
+        return packages, (packages != packages_org)
+    
+    # iteratively unroll/expand dependencies until the full list is resolved
+    while True:
+        packages, changed = add_depends(packages)
+        if not changed:
             break
      
     # make sure all packages can be found
     if check:
         for package in packages:    
             find_package(package)
-        
+
     return packages
 
 
@@ -365,7 +384,7 @@ def config_package(package):
         config_path = os.path.join(package['path'], config_filename)
         
         if config_ext == '.py':
-            print(f"-- Loading {config_path}")
+            log_debug(f"-- Loading {config_path}")
             module_name = f"packages.{package['name']}.config"
             spec = importlib.util.spec_from_file_location(module_name, config_path)
             module = importlib.util.module_from_spec(spec)
@@ -377,7 +396,7 @@ def config_package(package):
                 return []
                 
         elif config_ext == '.json' or config_ext == '.yml' or config_ext == '.yaml':
-            print(f"-- Loading {config_path}")
+            log_debug(f"-- Loading {config_path}")
             config = validate_config(config_path)  # load and validate the config file
             apply_config(package, config)
     
@@ -390,6 +409,9 @@ def validate_package(package):
     """
     packages = []
     
+    if isinstance(package, tuple):
+        package = list(package)
+        
     if isinstance(package, dict):
         for key, value in package.items():  # check for sub-packages
             if validate_dict(value):
@@ -398,17 +420,22 @@ def validate_package(package):
         if len(packages) == 0:  # there were no sub-packages
             packages.append(package)
     elif isinstance(package, list):
-        packages = package  # TODO what if these contain subpackages?
-       
+        for x in package:
+            if validate_dict(x):
+                packages.append(x)
+            else:
+                packages.extend(validate_package(x))
+      
     for pkg in packages.copy():  # check to see if any packages were disabled
-        pkg['requires'] = SpecifierSet(pkg['requires'])
+        if not isinstance(pkg['requires'], SpecifierSet):
+            pkg['requires'] = SpecifierSet(pkg['requires'])
         
         if _PACKAGE_OPTS['check_l4t_version'] and L4T_VERSION not in pkg['requires']:
-            print(f"-- Package {pkg['name']} isn't compatible with L4T r{L4T_VERSION} (requires L4T {pkg['requires']})")
+            log_debug(f"-- Package {pkg['name']} isn't compatible with L4T r{L4T_VERSION} (requires L4T {pkg['requires']})")
             pkg['disabled'] = True
             
         if pkg.get('disabled', False):
-            print(f"-- Package {pkg['name']} was disabled by its config")
+            log_debug(f"-- Package {pkg['name']} was disabled by its config")
             packages.remove(pkg)
         else:    
             validate_lists(pkg)  # make sure certain entries are lists

@@ -3,7 +3,7 @@
 > [`CONTAINERS`](#user-content-containers) [`IMAGES`](#user-content-images) [`RUN`](#user-content-run) [`BUILD`](#user-content-build)
 
 
-![a photograph of an astronaut riding a horse](/docs/images/diffusion_astronaut.jpg)
+<img src="https://raw.githubusercontent.com/dusty-nv/jetson-containers/docs/docs/images/diffusion_astronaut.jpg">
 
 Generate images from text (txt2img) or from other images (img2img)
 
@@ -65,10 +65,10 @@ To run all these steps from a script, see [`stable-diffusion/test.sh`](/packages
 | :-- | :-- |
 | &nbsp;&nbsp;&nbsp;Builds | [![`stable-diffusion_jp51`](https://img.shields.io/github/actions/workflow/status/dusty-nv/jetson-containers/stable-diffusion_jp51.yml?label=stable-diffusion:jp51)](https://github.com/dusty-nv/jetson-containers/actions/workflows/stable-diffusion_jp51.yml) |
 | &nbsp;&nbsp;&nbsp;Requires | `L4T >=34.1.0` |
-| &nbsp;&nbsp;&nbsp;Dependencies | [`build-essential`](/packages/build-essential) [`python`](/packages/python) [`numpy`](/packages/numpy) [`cmake`](/packages/cmake/cmake_pip) [`onnx`](/packages/onnx) [`pytorch`](/packages/pytorch) [`torchvision`](/packages/pytorch/torchvision) [`huggingface_hub`](/packages/llm/huggingface_hub) [`rust`](/packages/rust) [`bitsandbytes`](/packages/llm/bitsandbytes) [`transformers`](/packages/llm/transformers) |
+| &nbsp;&nbsp;&nbsp;Dependencies | [`build-essential`](/packages/build-essential) [`cuda`](/packages/cuda/cuda) [`cudnn`](/packages/cuda/cudnn) [`python`](/packages/python) [`tensorrt`](/packages/tensorrt) [`numpy`](/packages/numpy) [`cmake`](/packages/cmake/cmake_pip) [`onnx`](/packages/onnx) [`pytorch`](/packages/pytorch) [`torchvision`](/packages/pytorch/torchvision) [`huggingface_hub`](/packages/llm/huggingface_hub) [`rust`](/packages/rust) [`transformers`](/packages/llm/transformers) |
 | &nbsp;&nbsp;&nbsp;Dependants | [`l4t-diffusion`](/packages/l4t/l4t-diffusion) |
 | &nbsp;&nbsp;&nbsp;Dockerfile | [`Dockerfile`](Dockerfile) |
-| &nbsp;&nbsp;&nbsp;Images | [`dustynv/stable-diffusion:r35.2.1`](https://hub.docker.com/r/dustynv/stable-diffusion/tags) `(2023-08-29, 6.0GB)`<br>[`dustynv/stable-diffusion:r35.3.1`](https://hub.docker.com/r/dustynv/stable-diffusion/tags) `(2023-08-29, 6.0GB)`<br>[`dustynv/stable-diffusion:r35.4.1`](https://hub.docker.com/r/dustynv/stable-diffusion/tags) `(2023-08-29, 6.0GB)` |
+| &nbsp;&nbsp;&nbsp;Images | [`dustynv/stable-diffusion:r35.2.1`](https://hub.docker.com/r/dustynv/stable-diffusion/tags) `(2023-12-14, 6.1GB)`<br>[`dustynv/stable-diffusion:r35.3.1`](https://hub.docker.com/r/dustynv/stable-diffusion/tags) `(2023-12-12, 6.1GB)`<br>[`dustynv/stable-diffusion:r35.4.1`](https://hub.docker.com/r/dustynv/stable-diffusion/tags) `(2023-12-15, 6.1GB)` |
 | &nbsp;&nbsp;&nbsp;Notes | disabled on JetPack 4 |
 
 </details>
@@ -79,9 +79,9 @@ To run all these steps from a script, see [`stable-diffusion/test.sh`](/packages
 
 | Repository/Tag | Date | Arch | Size |
 | :-- | :--: | :--: | :--: |
-| &nbsp;&nbsp;[`dustynv/stable-diffusion:r35.2.1`](https://hub.docker.com/r/dustynv/stable-diffusion/tags) | `2023-08-29` | `arm64` | `6.0GB` |
-| &nbsp;&nbsp;[`dustynv/stable-diffusion:r35.3.1`](https://hub.docker.com/r/dustynv/stable-diffusion/tags) | `2023-08-29` | `arm64` | `6.0GB` |
-| &nbsp;&nbsp;[`dustynv/stable-diffusion:r35.4.1`](https://hub.docker.com/r/dustynv/stable-diffusion/tags) | `2023-08-29` | `arm64` | `6.0GB` |
+| &nbsp;&nbsp;[`dustynv/stable-diffusion:r35.2.1`](https://hub.docker.com/r/dustynv/stable-diffusion/tags) | `2023-12-14` | `arm64` | `6.1GB` |
+| &nbsp;&nbsp;[`dustynv/stable-diffusion:r35.3.1`](https://hub.docker.com/r/dustynv/stable-diffusion/tags) | `2023-12-12` | `arm64` | `6.1GB` |
+| &nbsp;&nbsp;[`dustynv/stable-diffusion:r35.4.1`](https://hub.docker.com/r/dustynv/stable-diffusion/tags) | `2023-12-15` | `arm64` | `6.1GB` |
 
 > <sub>Container images are compatible with other minor versions of JetPack/L4T:</sub><br>
 > <sub>&nbsp;&nbsp;&nbsp;&nbsp;• L4T R32.7 containers can run on other versions of L4T R32.7 (JetPack 4.6+)</sub><br>

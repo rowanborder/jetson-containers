@@ -28,8 +28,15 @@ if [ -n "$DISPLAY" ]; then
 	DISPLAY_DEVICE="-e DISPLAY=$DISPLAY -v /tmp/.X11-unix/:/tmp/.X11-unix -v $XAUTH:$XAUTH -e XAUTHORITY=$XAUTH"
 fi
 
+# extra flags
+EXTRA_FLAGS=""
+
+if [ -n "$HUGGINGFACE_TOKEN" ]; then
+	EXTRA_FLAGS="$EXTRA_FLAGS --env HUGGINGFACE_TOKEN=$HUGGINGFACE_TOKEN"
+fi
+
 # check if sudo is needed
-if id -nG "$USER" | grep -qw "docker"; then
+if [ $(id -u) -eq 0 ] || id -nG "$USER" | grep -qw "docker"; then
 	SUDO=""
 else
 	SUDO="sudo"
@@ -51,10 +58,14 @@ if [ $ARCH = "aarch64" ]; then
 		--volume /etc/enctune.conf:/etc/enctune.conf \
 		--volume /etc/nv_tegra_release:/etc/nv_tegra_release \
 		--volume /tmp/nv_jetson_model:/tmp/nv_jetson_model \
+		--volume /var/run/dbus:/var/run/dbus \
+		--volume /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket \
+		--volume /var/run/docker.sock:/var/run/docker.sock \
+		--volume $ROOT/packages/llm/local_llm:/opt/local_llm/local_llm \
 		--volume $ROOT/data:/data \
 		--device /dev/snd \
 		--device /dev/bus/usb \
-		$DATA_VOLUME $DISPLAY_DEVICE $V4L2_DEVICES \
+		$DATA_VOLUME $DISPLAY_DEVICE $V4L2_DEVICES $EXTRA_FLAGS \
 		"$@"
 
 elif [ $ARCH = "x86_64" ]; then
@@ -67,6 +78,6 @@ elif [ $ARCH = "x86_64" ]; then
 		--ulimit stack=67108864 \
 		--env NVIDIA_DRIVER_CAPABILITIES=all \
 		--volume $ROOT/data:/data \
-		$DATA_VOLUME $DISPLAY_DEVICE $V4L2_DEVICES \
+		$DATA_VOLUME $DISPLAY_DEVICE $V4L2_DEVICES $EXTRA_FLAGS \
 		"$@"	
 fi

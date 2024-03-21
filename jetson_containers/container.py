@@ -2,9 +2,11 @@
 import os
 import sys
 import copy
+import time
 import json
 import pprint
 import fnmatch
+import logging
 import traceback
 import subprocess
 import dockerhub_api 
@@ -12,7 +14,7 @@ import dockerhub_api
 from .packages import find_package, find_packages, resolve_dependencies, validate_dict, _PACKAGE_ROOT
 from .l4t_version import L4T_VERSION, l4t_version_from_tag, l4t_version_compatible, get_l4t_base
 from .utils import split_container_name, query_yes_no, needs_sudo, sudo_prefix
-from .logging import log_dir
+from .logging import log_dir, log_debug, pprint_debug
 
 from packaging.version import Version
 
@@ -20,7 +22,7 @@ from packaging.version import Version
 _NEWLINE_=" \\\n"  # used when building command strings
 
 
-def build_container(name, packages, base=get_l4t_base(), build_flags='', simulate=False, skip_tests=[], test_only=[], push=''):
+def build_container(name, packages, base=get_l4t_base(), build_flags='', simulate=False, skip_tests=[], test_only=[], push='', no_github_api=False):
     """
     Multi-stage container build that chains together selected packages into one container image.
     For example, `['pytorch', 'tensorflow']` would build a container that had both pytorch and tensorflow in it.
@@ -35,6 +37,7 @@ def build_container(name, packages, base=get_l4t_base(), build_flags='', simulat
       skip_tests (list[str]) -- list of tests to skip (or 'all' or 'intermediate')
       test_only (list[str]) -- only test these specified packages, skipping all other tests
       push (str) -- name of repository or user to push container to (no push if blank)
+      no_github_api (bool) -- if true, use custom Dockerfile with no `ADD https://api.github.com/repos/...` line.
       
     Returns: 
       The full name of the container image that was built (as a string)
@@ -101,8 +104,20 @@ def build_container(name, packages, base=get_l4t_base(), build_flags='', simulat
         pkg = find_package(package)
         
         if 'dockerfile' in pkg:
-            cmd = f"{sudo_prefix()}docker build --network=host --tag {container_name}" + _NEWLINE_
-            cmd += f"--file {os.path.join(pkg['path'], pkg['dockerfile'])}" + _NEWLINE_
+            cmd = f"{sudo_prefix()}DOCKER_BUILDKIT=0 docker build --network=host --tag {container_name}" + _NEWLINE_
+            if no_github_api:
+                dockerfilepath = os.path.join(pkg['path'], pkg['dockerfile'])
+                with open(dockerfilepath, 'r') as fp:
+                    data = fp.read()
+                    if 'ADD https://api.github.com' in data:
+                        dockerfilepath_minus_github_api = os.path.join(pkg['path'], pkg['dockerfile'] + '.minus-github-api')
+                        os.system(f"cp {dockerfilepath} {dockerfilepath_minus_github_api}")
+                        os.system(f"sed 's|^ADD https://api.github.com|#[minus-github-api]ADD https://api.github.com|' -i {dockerfilepath_minus_github_api}")
+                        cmd += f"--file {os.path.join(pkg['path'], pkg['dockerfile'] + '.minus-github-api')}" + _NEWLINE_
+                    else:
+                        cmd += f"--file {os.path.join(pkg['path'], pkg['dockerfile'])}" + _NEWLINE_
+            else:
+                cmd += f"--file {os.path.join(pkg['path'], pkg['dockerfile'])}" + _NEWLINE_
             cmd += f"--build-arg BASE_IMAGE={base}" + _NEWLINE_
             
             if 'build_args' in pkg:
@@ -309,6 +324,10 @@ def test_container(name, package, simulate=False):
     return True
     
     
+_LOCAL_CACHE=[]
+_REGISTRY_CACHE=[]
+
+
 def get_local_containers():
     """
     Get the locally-available container images from the 'docker images' command
@@ -320,6 +339,11 @@ def get_local_containers():
          
     These containers are sorted by most recent created to the oldest.
     """
+    global _LOCAL_CACHE
+    
+    if len(_LOCAL_CACHE) > 0:
+        return _LOCAL_CACHE
+        
     cmd = ["docker", "images", "--format", "'{{json . }}'"]
     
     if needs_sudo():
@@ -329,13 +353,12 @@ def get_local_containers():
                             #capture_output=True, universal_newlines=True, 
                             shell=False, check=True)
 
-    return [json.loads(txt.lstrip("'").rstrip("'"))
-            for txt in status.stdout.decode('ascii').splitlines()]
+    _LOCAL_CACHE = [json.loads(txt.lstrip("'").rstrip("'"))
+        for txt in status.stdout.decode('ascii').splitlines()]
+            
+    return _LOCAL_CACHE
         
 
-_REGISTRY_CACHE=[]  # use this as to not exceed DockerHub API rate limits
-
- 
 def get_registry_containers(user='dustynv', **kwargs):
     """
     Fetch a DockerHub user's public container images/tags.
@@ -343,17 +366,47 @@ def get_registry_containers(user='dustynv', **kwargs):
 
     To view the number of requests remaining within the rate-limit:
       curl -i https://hub.docker.com/v2/namespaces/dustynv/repositories/l4t-pytorch/tags
+      
+    All the caching is to prevent going over the DockerHub API rate limits.
     """
     global _REGISTRY_CACHE
     
     if len(_REGISTRY_CACHE) > 0:
         return _REGISTRY_CACHE
-        
-    hub = dockerhub_api.DockerHub(return_lists=True)
+    
+    cache_path = kwargs.get('registry_cache',
+        os.environ.get('DOCKERHUB_CACHE', 
+            os.path.join(_PACKAGE_ROOT, 'data/containers.json')
+    ))
+    
+    cache_enabled = (cache_path != "0" and cache_path.lower() != "off")
+
+    if cache_enabled and os.path.isfile(cache_path):
+        if time.time() - os.path.getmtime(cache_path) > 600 and os.geteuid() != 0:
+            cmd = f"cd {_PACKAGE_ROOT} && git fetch origin dev --quiet && git checkout --quiet origin/dev -- {os.path.relpath(cache_path, _PACKAGE_ROOT)}"
+            status = subprocess.run(cmd, executable='/bin/bash', shell=True, check=False)
+            if status.returncode != 0:
+                logging.error(f'failed to update container registry cache from GitHub ({cache_path})')
+                logging.error(f'return code {status.returncode} > {cmd}')
+                
+        with open(cache_path) as cache_file:
+            try:
+                _REGISTRY_CACHE = json.load(cache_file)
+                return _REGISTRY_CACHE
+            except Exception:
+                pass
+                
+    hub = dockerhub_api.DockerHub(return_lists=True, token=os.environ.get('DOCKERHUB_TOKEN'))
     _REGISTRY_CACHE = hub.repositories(user)
     
     for repo in _REGISTRY_CACHE:
         repo['tags'] = hub.tags(user, repo['name'])
+
+    if not cache_enabled:
+        cache_path = 'data/containers.json'
+        
+    with open(cache_path, 'w') as cache_file:
+        json.dump(_REGISTRY_CACHE, cache_file, indent=2)
 
     return _REGISTRY_CACHE
     
@@ -369,10 +422,8 @@ def find_local_containers(package, return_dicts=False, **kwargs):
     
     namespace, repo, tag = split_container_name(package)
     local_images = get_local_containers()
-        
-    if kwargs.get('verbose', False):
-        pprint.pprint(local_images)
-        
+    pprint_debug(local_images)
+    
     found_containers = []
     
     for image in local_images:
@@ -409,9 +460,7 @@ def find_registry_containers(package, check_l4t_version=True, return_dicts=False
     
     namespace, repo, tag = split_container_name(package)
     registry_repos = get_registry_containers(**kwargs)
-    
-    if kwargs.get('verbose', False):
-        pprint.pprint(registry_repos)
+    pprint_debug(registry_repos)
 
     found_containers = []
     
@@ -443,7 +492,7 @@ def find_registry_containers(package, check_l4t_version=True, return_dicts=False
     return found_containers
     
             
-def find_container(package, prefer_sources=['local', 'registry', 'build'], disable_sources=[], **kwargs):
+def find_container(package, prefer_sources=['local', 'registry', 'build'], disable_sources=[], quiet=True, **kwargs):
     """
     Finds a local or remote container image to run for the given package (returns a string)
     TODO search for other packages that depend on this package if an image isn't available.
@@ -453,12 +502,7 @@ def find_container(package, prefer_sources=['local', 'registry', 'build'], disab
         package = package['name']
      
     namespace, repo, tag = split_container_name(package)
-    
-    verbose = kwargs.get('verbose', False)
-    quiet = kwargs.get('quiet', False)
-    
-    if verbose:
-        print(f"-- Finding compatible container image for namespace={namespace} repo={repo} tag={tag}")
+    log_debug(f"-- Finding compatible container image for namespace={namespace} repo={repo} tag={tag}")
 
     for source in prefer_sources:
         if source in disable_sources:

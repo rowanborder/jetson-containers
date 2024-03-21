@@ -13,9 +13,18 @@ on:
       - 'packages/build-essential/*'
       - '!packages/build-essential/README.md'
       - '!packages/build-essential/docs.md'
+      - 'packages/cuda/cuda/*'
+      - '!packages/cuda/cuda/README.md'
+      - '!packages/cuda/cuda/docs.md'
+      - 'packages/cuda/cudnn/*'
+      - '!packages/cuda/cudnn/README.md'
+      - '!packages/cuda/cudnn/docs.md'
       - 'packages/python/*'
       - '!packages/python/README.md'
       - '!packages/python/docs.md'
+      - 'packages/tensorrt/*'
+      - '!packages/tensorrt/README.md'
+      - '!packages/tensorrt/docs.md'
       - 'packages/numpy/*'
       - '!packages/numpy/README.md'
       - '!packages/numpy/docs.md'
@@ -37,9 +46,6 @@ on:
       - 'packages/rust/*'
       - '!packages/rust/README.md'
       - '!packages/rust/docs.md'
-      - 'packages/llm/bitsandbytes/*'
-      - '!packages/llm/bitsandbytes/README.md'
-      - '!packages/llm/bitsandbytes/docs.md'
 jobs:
   transformers_jp51:
     runs-on: [self-hosted, jetson, jp51]
@@ -50,6 +56,8 @@ jobs:
         run: |
          echo "$RUNNER_WORKSPACE" 
          cd $RUNNER_WORKSPACE 
+         git config --global user.email "dustinf@nvidia.com" 
+         git config --global user.name "Dustin Franklin" 
          git clone $GITHUB_SERVER_URL/$GITHUB_REPOSITORY || echo 'repo already cloned or another error encountered' 
          cd jetson-containers 
          git fetch origin 

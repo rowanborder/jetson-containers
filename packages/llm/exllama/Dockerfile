@@ -1,5 +1,6 @@
 #---
-# name: exllama
+# name: exllama:v1
+# alias: exllama
 # group: llm
 # config: config.py
 # depends: [pytorch, huggingface_hub]
@@ -39,7 +40,8 @@ RUN cd exllama && \
 RUN cd exllama && \
     python3 setup.py --verbose bdist_wheel && \
     cp dist/exllama*.whl /opt
-    
+  
+RUN pip3 install --ignore-installed --no-cache-dir blinker  # cannot uninstall 'blinker': It is a distutils installed project
 RUN pip3 install --no-cache-dir --verbose /opt/exllama*.whl
 
 # missing 'safetensors', but it's in the requirements.txt?
@@ -55,11 +57,5 @@ RUN pip3 show exllama && python3 -c 'import exllama'
 RUN sed '1 i import resource' -i exllama/test_benchmark_inference.py && \
     sed '/    mem("Total", total = True)/a\ \ \ \ print(f" ** RAM, Total: {(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss + resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss) / 1024:,.2f} MB")' -i exllama/test_benchmark_inference.py && \
     cat exllama/test_benchmark_inference.py
-    
-# for benchmark timing
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends time \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
     
 WORKDIR /

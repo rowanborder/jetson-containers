@@ -28,9 +28,6 @@ on:
       - 'packages/pytorch/*'
       - '!packages/pytorch/README.md'
       - '!packages/pytorch/docs.md'
-      - 'packages/llm/bitsandbytes/*'
-      - '!packages/llm/bitsandbytes/README.md'
-      - '!packages/llm/bitsandbytes/docs.md'
       - 'packages/pytorch/torchvision/*'
       - '!packages/pytorch/torchvision/README.md'
       - '!packages/pytorch/torchvision/docs.md'
@@ -43,12 +40,18 @@ on:
       - 'packages/llm/transformers/*'
       - '!packages/llm/transformers/README.md'
       - '!packages/llm/transformers/docs.md'
+      - 'packages/llm/bitsandbytes/*'
+      - '!packages/llm/bitsandbytes/README.md'
+      - '!packages/llm/bitsandbytes/docs.md'
       - 'packages/llm/auto_gptq/*'
       - '!packages/llm/auto_gptq/README.md'
       - '!packages/llm/auto_gptq/docs.md'
       - 'packages/llm/gptq-for-llama/*'
       - '!packages/llm/gptq-for-llama/README.md'
       - '!packages/llm/gptq-for-llama/docs.md'
+      - 'packages/llm/exllama/*'
+      - '!packages/llm/exllama/README.md'
+      - '!packages/llm/exllama/docs.md'
       - 'packages/llm/exllama/*'
       - '!packages/llm/exllama/README.md'
       - '!packages/llm/exllama/docs.md'
@@ -65,6 +68,8 @@ jobs:
         run: |
          echo "$RUNNER_WORKSPACE" 
          cd $RUNNER_WORKSPACE 
+         git config --global user.email "dustinf@nvidia.com" 
+         git config --global user.name "Dustin Franklin" 
          git clone $GITHUB_SERVER_URL/$GITHUB_REPOSITORY || echo 'repo already cloned or another error encountered' 
          cd jetson-containers 
          git fetch origin 
